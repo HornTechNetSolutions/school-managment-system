@@ -9,8 +9,7 @@ export interface JwtPayloadCustom extends jwt.JwtPayload {
 export const authorize = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
-    console.log("User in middleware:", (req as any).user);
-    console.log("Roles allowed for this route:", roles);
+
     if (!user){
       return res.status(401).json({ message: "Unauthorized" });
     };
@@ -24,12 +23,12 @@ export const authorize = (...roles: string[]) => {
 };
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No token provided" });
-  };
+  console.log("Authorization header:", req.headers.authorization);
+  const token = req.cookies.accessToken;
 
-  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
 
   try {
    const decoded = jwt.verify(

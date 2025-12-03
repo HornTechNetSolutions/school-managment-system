@@ -4,282 +4,227 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.ts"
 import { signAccessToken, signRefreshToken,verifyRefreshToken } from  "../utils/jwt.ts"
 
+function validateBasicFields({ fullName, email, password, confirmPassword, role }) {
+  if (!fullName || !email || !password || !confirmPassword || !role) {
+    return "All fields required";
+  }
+  if (password !== confirmPassword) return "Passwords do not match";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Invalid email";
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/.test(password))
+    return "Weak password format";
+  return null;
+};
+
+async function validateRoleFields(role, body) {
+  const { studentNumber, employeeNumber, parentNumber, employeeRole } = body;
+
+  switch (role.toUpperCase()) {
+    case "STUDENT":
+      if (!studentNumber) return "Student number required";
+      if (await prisma.users.findUnique({ where: { studentNumber } }))
+        return "Student number already used";
+      break;
+
+    case "EMPLOYEE":
+      if (!employeeNumber) return "Employee number required";
+      if (!employeeRole) return "Employee role required";
+      if (await prisma.users.findUnique({ where: { employeeNumber } }))
+        return "Employee number already used";
+      break;
+
+    case "PARENT":
+      if (!parentNumber) return "Parent number required";
+      if (await prisma.users.findUnique({ where: { parentNumber } }))
+        return "Parent number already used";
+      break;
+
+    case "TEACHER":
+    case "ADMIN":
+      break;
+
+    default:
+      return "Invalid role";
+  }
+
+  return null;
+};
+
+async function createProfile(role, user, body) {
+  const { fullName, employeeRole, department, title } = body;
+
+  switch (role.toUpperCase()) {
+    case "STUDENT":
+      return prisma.student.create({
+        data: {
+          studentUuid: user.userUuid,
+          studentName: fullName,
+          userUuid: user.userUuid,
+        },
+      });
+
+    case "EMPLOYEE":
+      return prisma.employee.create({
+        data: {
+          employeeUuid: user.userUuid,
+          employeeName: fullName,
+          userUuid: user.userUuid,
+          employeeRole,
+          department: department || null,
+          title: title || null,
+        },
+      });
+
+    case "PARENT":
+      return prisma.parent.create({
+        data: {
+          parentUuid: user.userUuid,
+          parentName: fullName,
+          userUuid: user.userUuid,
+        },
+      });
+
+    case "TEACHER":
+      return prisma.teacher.create({
+        data: {
+          teacherUuid: user.userUuid,
+          teacherName: fullName,
+          userUuid: user.userUuid,
+        },
+      });
+
+    case "ADMIN":
+      return prisma.admin.create({
+        data: {
+          adminUuid: user.userUuid,
+          adminName: fullName,
+          userUuid: user.userUuid,
+        },
+      });
+  }
+};
 
 export const signup= async (req: Request, res: Response)=>{
-    const {
-        fullName, 
-        email, 
-        studentNumber, 
-        employeeNumber, role, password, confirmPassword, parentNumber, 
-        employeeRole, 
-        department,
-        title,}= req.body;
-    try {
-        console.log("Signup body:", req.body);
+  try {
+    const body = req.body;
+    const { role, email, password } = body;
 
-        if(!fullName || !email || !password || !confirmPassword || !role){
-            return res.status(400).json({success: false, message: "All fields required"})
-        };
+    const baseError = validateBasicFields(body);
+    if (baseError) return res.status(400).json({ success: false, message: baseError });
 
-        if (password !== confirmPassword) {
-            return res.status(400).json({ success: false, message: "Passwords do not match" });
-        };
+    const roleError = await validateRoleFields(role, body);
+    if (roleError) return res.status(400).json({ success: false, message: roleError });
 
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-            return res.status(400).json({ success: false, message: "Invalid email" });
-        };
-        
-        if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/.test(password)){
-            return res.status(400).json({ 
-                message:"Password must be at least 8 characters long, include upper & lowercase letters, a number, and a special character."
-            });
-        };
+    if (await prisma.users.findUnique({ where: { email } }))
+      return res.status(400).json({ success: false, message: "Email already in use" });
 
-        const existingEmail= await prisma.users.findUnique({
-            where: {email}
-        });
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-        if (existingEmail) {
-            return res.status(400).json({ success: false, message: "Email already in use" });
-        };
+    const user = await prisma.users.create({
+      data: {
+        fullName: body.fullName,
+        email: body.email,
+        password: hashedPassword,
+        role: body.role,
+        studentNumber: body.studentNumber || null,
+        employeeNumber: body.employeeNumber || null,
+        parentNumber: body.parentNumber || null,
+        adminNumber: body.adminNumber || null,
+      },
+    });
 
-        if (role === "STUDENT" && studentNumber) {
-            const existingStudent = await prisma.users.findUnique({
-              where: { studentNumber: studentNumber },
-            });
-      
-            if (existingStudent) {
-              return res
-                .status(400)
-                .json({ message: "Student number already used" });
-            }
-        };
+    const profile = await createProfile(role, user, body);
 
-        if (role === "EMPLOYEE" && employeeNumber) {
-            const existingEmployee = await prisma.users.findUnique({
-                where: { employeeNumber: employeeNumber },
-            });
-    
-            if (existingEmployee) {
-                return res
-                    .status(400)
-                    .json({ message: "Employee number already used" });
-            };
-        };
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m" }
+    );
 
-        if (role === "PARENT" && parentNumber) {
-            const existingParent = await prisma.users.findUnique({
-              where: { parentNumber: parentNumber },
-            });
-            if (existingParent) {
-              return res
-                .status(400)
-                .json({ message: "Parent number already used" });
-            }
-        }
+    const refreshToken = jwt.sign(
+      { userId: user.id },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: "7d" }
+    );
 
-        const salt= await bcrypt.genSalt(12)
-        const hashedPassword= await bcrypt.hash(password,salt);
-        
-        let newUser;
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      user,
+      profile,
+      accessToken,
+      refreshToken,
+    });
+  } catch (err) {
+    console.error("Signup Error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  };
 
-        switch (role.toUpperCase()) {
-            case "STUDENT":
-              if (!studentNumber)
-                return res
-                  .status(400)
-                  .json({ message: "Student number required for students" });
-      
-              newUser = await prisma.users.create({
-                data: {
-                  fullName: fullName,
-                  email,
-                  password: hashedPassword,
-                  role: "STUDENT",
-                  studentNumber,
-                  student: { create: {} },
-                },
-                include: { student: true },
-              });
-              break;
-      
-            case "EMPLOYEE":
-              if (!employeeNumber)
-                return res
-                  .status(400)
-                  .json({ message: "Employee number required for employees" });
-      
-              if (!employeeRole)
-                return res
-                  .status(400)
-                  .json({ message: "Employee role required" });
-      
-              newUser = await prisma.users.create({
-                data: {
-                  fullName: name,
-                  email,
-                  password: hashedPassword,
-                  role: "EMPLOYEE",
-                  employeeNumber,
-                  employee: {
-                    create: {
-                      role: employeeRole,
-                      department: department || null,
-                      title: title || null,
-                    },
-                  },
-                },
-                include: { employee: true },
-              });
-              break;
-      
-            case "PARENT":
-              if (!parentNumber)
-                return res
-                  .status(400)
-                  .json({ message: "Parent number required" });
-      
-              newUser = await prisma.users.create({
-                data: {
-                  fullName: name,
-                  email,
-                  password: hashedPassword,
-                  role: "PARENT",
-                  parentNumber,
-                  parent: { create: {} },
-                },
-                include: { parent: true },
-              });
-              break;
-      
-            case "TEACHER":
-              newUser = await prisma.users.create({
-                data: {
-                  fullName: name,
-                  email,
-                  password: hashedPassword,
-                  role: "TEACHER",
-                  teacher: { create: {} },
-                },
-                include: { teacher: true },
-              });
-              break;
-      
-            case "ADMIN":
-              newUser = await prisma.users.create({
-                data: {
-                  fullName: name,
-                  email,
-                  password: hashedPassword,
-                  role: "ADMIN",
-                  admin: { create: {} },
-                },
-                include: { admin: true },
-              });
-              break;
-      
-            default:
-              return res.status(400).json({ message: "Invalid role" });
-        }
-
-        const accessToken = jwt.sign(
-            { userId: newUser.id, role: newUser.role },
-            process.env.ACCESS_TOKEN_SECRET as string,
-            { expiresIn: "15m" }
-        );
-
-        const refreshToken = jwt.sign(
-            { userId: newUser.id },
-            process.env.REFRESH_TOKEN_SECRET as string,
-            { expiresIn: "7d" }
-        );
-
-        await prisma.refreshToken.create({
-            data: {
-              token: refreshToken,
-              userId: newUser.id,
-            },
-        });
-
-        res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: false, // set true in production
-            sameSite: "lax", // or "none" for cross-site
-            path: "/",
-        });
-        
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            path: "/",
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "Account created successfully",
-            user: newUser,
-             accessToken,
-             refreshToken,
-        });
-    } catch (err) {
-        console.error("Signup Error:", err);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
+  // await prisma.refreshToken.create({
+  //     data: {
+  //       token: refreshToken,
+  //       userId: newUser.id,
+  //     },
+  // });
 };
 
 export const login= async (req: Request, res: Response)=>{
-    try {
-        const {password, studentNumber, employeeNumber}= req.body;
+  try {
+      const {password, studentNumber, employeeNumber}= req.body;
 
-        if (!password){
-            return res.status(400).json({ message: "Email & password required" })
-        };
+      if (!password){
+          return res.status(400).json({ message: "Email & password required" })
+      };
 
-        let user;
+      let user;
 
-        if(studentNumber){
-            user= await prisma.users.findUnique( {where: {studentNumber}})
-        };
+      if(studentNumber){
+          user= await prisma.users.findUnique( {where: {studentNumber}})
+      };
 
-        if (!user && employeeNumber) {
-            user = await prisma.users.findUnique({
-                where: { employeeNumber }
-            });
-        }
+      if (!user && employeeNumber) {
+          user = await prisma.users.findUnique({
+              where: { employeeNumber }
+          });
+      }
 
-        if (!user) return res.status(401).json({ message: "User not found" });
+      if (!user) return res.status(401).json({ message: "User not found" });
 
-        const valid= await bcrypt.compare(password, user.password);
-        if (!valid){
-            return res.status(401).json({ message: "Invalid credentials" });
-        }
+      const valid= await bcrypt.compare(password, user.password);
+      if (!valid){
+          return res.status(401).json({ message: "Invalid credentials" });
+      }
 
-        const accessToken = signAccessToken({ userId: user.id, role: user.role });
-        const refreshToken = signRefreshToken({ userId: user.id, role: user.role });
-      
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
+      const accessToken = signAccessToken({ userId: user.id, role: user.role });
+      const refreshToken = signRefreshToken({ userId: user.id, role: user.role });
 
-        return res.status(200).json({
-            success: true,
-            accessToken,
-            user: {
-                id: user.id,
-                fullName: user.fullName,
-                email: user.email,
-                role: user.role,
-                studentNumber: user.studentNumber,
-                employeeNumber: user.employeeNumber,
-            }
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Internal server error" });
-    }
+      res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 15 * 60 * 1000, // 15 min
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      return res.status(200).json({
+          success: true,
+          accessToken,
+          user: {
+              id: user.id,
+              fullName: user.fullName,
+              email: user.email,
+              role: user.role,
+              studentNumber: user.studentNumber,
+              employeeNumber: user.employeeNumber,
+          }
+      });
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const logout= async (_req: Request, res: Response)=>{
@@ -312,3 +257,53 @@ export const refreshToken = async (req: Request, res: Response) => {
         res.status(401).json({ message: "Invalid or expired refresh token" });
     }
 };
+
+export const getMe= async (req: Request, res: Response)=>{
+  try {
+    const userData= (req as any).user;
+
+    if (!userData) {
+      return res.status(401).json({ message: "Not authenticated" });
+    };
+
+    const user = await prisma.users.findUnique({
+      where: { id: userData.userId },
+      include: {
+        student: true,
+        teacher: true,
+        parent: true,
+        employee: true,
+        admin: true,
+      },
+    });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        studentNumber: user.studentNumber,
+        employeeNumber: user.employeeNumber,
+        parentNumber: user.parentNumber,
+
+        student: user.student,
+        teacher: user.teacher,
+        parent: user.parent,
+        employee: user.employee,
+        admin: user.admin,
+      },
+    });
+  } catch (err: any) {
+    console.error("getMe error:", err);
+
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Access token expired" });
+    }
+
+    return res.status(500).json({ message: "Server error" });
+  }
+}
