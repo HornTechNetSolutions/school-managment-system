@@ -53,7 +53,7 @@ model users {
   studentNumber String?  @unique
   employeeNumber String? @unique
   adminNumber String? @unique
-  parentNumber   String? @unique
+  teacherNumber String? @unique
 
   student       student?
   teacher       teacher?
@@ -67,7 +67,9 @@ model users {
 
 model student {
   studentUuid  String   @id @default(uuid())
-  studentName  String   // 👈 store the student's full name here
+  studentName  String  
+  studentEmail String @unique
+  studentNumber String @unique
 
   userUuid     String   @unique
   user         users     @relation(fields: [userUuid], references: [userUuid])
@@ -86,7 +88,8 @@ model student {
 
 model parent {
   parentUuid   String @id @default(uuid())
-  parentName   String   // 👈 parent full name
+  parentName   String   
+  parentEmail String @unique
 
   userUuid     String @unique
   user         users   @relation(fields: [userUuid], references: [userUuid])
@@ -99,12 +102,14 @@ model parent {
 
 model teacher {
   teacherUuid  String @id @default(uuid())
-  teacherName  String   // 👈 teacher name stored here
+  teacherName  String  
+  teacherEmail String @unique
+  teacherNumber String @unique 
 
   userUuid     String @unique
   user         users   @relation(fields: [userUuid], references: [userUuid])
 
-  subject      String?
+  // subject      String?
   classes      Class[]
   assignments  Assignment[]
 
@@ -112,11 +117,15 @@ model teacher {
   updatedAt DateTime @updatedAt
 
   AssignmentSubmission AssignmentSubmission[]
+
+  TeacherSubject TeacherSubject[]
 }
 
 model admin {
   adminUuid  String @id @default(uuid())
-  adminName  String   // 👈 admin name stored here
+  adminName  String 
+  adminEmail String @unique
+  adminNumber String @unique  
 
   userUuid   String @unique
   user       users   @relation(fields: [userUuid], references: [userUuid])
@@ -127,7 +136,9 @@ model admin {
 
 model employee {
   employeeUuid String @id @default(uuid())
-  employeeName String   // 👈 employee name stored here
+  employeeName String  
+  employeeEmail String @unique
+  employeeNumber String @unique
 
   userUuid     String @unique
   user         users   @relation(fields: [userUuid], references: [userUuid])
@@ -140,19 +151,52 @@ model employee {
   updatedAt DateTime @updatedAt
 }
 
+model Subject {
+  subjectUuid String @id @default(uuid())
+  name        String
+  code        String?  @unique 
+
+  classes     ClassSubject[]
+  teachers    TeacherSubject[]
+  Assignment Assignment[]
+}
+
 model Class {
   classUuid String @id @default(uuid())
   name      String
   grade     Int
-
-  teacherUuid String?
-  teacher     teacher? @relation(fields: [teacherUuid], references: [teacherUuid])
   
   students   student[]
   assignments Assignment[]
 
+  ClassSubject ClassSubject[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  teacher teacher[]
+}
+
+model ClassSubject {
+  id         String @id @default(uuid())
+  classUuid  String
+  subjectUuid String
+
+  class      Class   @relation(fields: [classUuid], references: [classUuid])
+  subject    Subject @relation(fields: [subjectUuid], references: [subjectUuid])
+
+  @@unique([classUuid, subjectUuid])
+}
+
+model TeacherSubject {
+  id          String @id @default(uuid())
+  teacherUuid String
+  subjectUuid String
+
+  teacher teacher  @relation(fields: [teacherUuid], references: [teacherUuid])
+  subject Subject  @relation(fields: [subjectUuid], references: [subjectUuid])
+
+  @@unique([teacherUuid, subjectUuid])
 }
 
 model Assignment {
@@ -160,14 +204,16 @@ model Assignment {
 
   // Relations
   teacherUuid    String
-  teacher       teacher @relation(fields: [teacherUuid], references: [teacherUuid])
-
+  subjectUuid    String
   classUuid      String
+  
+  teacher       teacher @relation(fields: [teacherUuid], references: [teacherUuid])
   class          Class   @relation(fields: [classUuid], references: [classUuid])
 
   // Denormalized data (copied from Teacher & Class)
   teacherName    String     // 👈 store teacher name directly
   className      String     // 👈 store class name directly
+  subject        Subject  @relation(fields: [subjectUuid], references: [subjectUuid])
 
   title          String
   description    String?

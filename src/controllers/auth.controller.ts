@@ -16,7 +16,7 @@ function validateBasicFields({ fullName, email, password, confirmPassword, role 
 };
 
 async function validateRoleFields(role, body) {
-  const { studentNumber, employeeNumber, parentNumber, employeeRole } = body;
+  const { studentNumber, employeeNumber, adminNumber, employeeRole, teacherNumber } = body;
 
   switch (role.toUpperCase()) {
     case "STUDENT":
@@ -32,14 +32,18 @@ async function validateRoleFields(role, body) {
         return "Employee number already used";
       break;
 
-    case "PARENT":
-      if (!parentNumber) return "Parent number required";
-      if (await prisma.users.findUnique({ where: { parentNumber } }))
-        return "Parent number already used";
+    case "ADMIN":
+      if (!adminNumber) return "Admin number required";
+      if (await prisma.users.findUnique({ where: { adminNumber } }))
+        return "Admin number already used";
+      break;
+    case "TEACHER":
+      if (!teacherNumber) return "Teacher number required";
+      if (await prisma.users.findUnique({ where: { teacherNumber } }))
+        return "Teacher number already used";
       break;
 
-    case "TEACHER":
-    case "ADMIN":
+    case "PARENT":
       break;
 
     default:
@@ -58,6 +62,8 @@ async function createProfile(role, user, body) {
         data: {
           studentUuid: user.userUuid,
           studentName: fullName,
+          studentEmail: user.email,
+          studentNumber: user.studentNumber,
           userUuid: user.userUuid,
         },
       });
@@ -67,6 +73,8 @@ async function createProfile(role, user, body) {
         data: {
           employeeUuid: user.userUuid,
           employeeName: fullName,
+          employeeEmail: user.email,
+          employeeNumber: user.employeeNumber,
           userUuid: user.userUuid,
           employeeRole,
           department: department || null,
@@ -79,6 +87,7 @@ async function createProfile(role, user, body) {
         data: {
           parentUuid: user.userUuid,
           parentName: fullName,
+          parentEmail: user.email,
           userUuid: user.userUuid,
         },
       });
@@ -88,6 +97,8 @@ async function createProfile(role, user, body) {
         data: {
           teacherUuid: user.userUuid,
           teacherName: fullName,
+          teacherNumber: user.teacherNumber,
+          teacherEmail: user.email,
           userUuid: user.userUuid,
         },
       });
@@ -97,6 +108,8 @@ async function createProfile(role, user, body) {
         data: {
           adminUuid: user.userUuid,
           adminName: fullName,
+          adminNumber: user.adminNumber,
+          adminEmail: user.email,
           userUuid: user.userUuid,
         },
       });
@@ -127,7 +140,6 @@ export const signup= async (req: Request, res: Response)=>{
         role: body.role,
         studentNumber: body.studentNumber || null,
         employeeNumber: body.employeeNumber || null,
-        parentNumber: body.parentNumber || null,
         adminNumber: body.adminNumber || null,
       },
     });
@@ -169,7 +181,7 @@ export const signup= async (req: Request, res: Response)=>{
 
 export const login= async (req: Request, res: Response)=>{
   try {
-      const {password, studentNumber, employeeNumber}= req.body;
+      const {password, studentNumber, employeeNumber, email, adminNumber}= req.body;
 
       if (!password){
           return res.status(400).json({ message: "Email & password required" })
@@ -180,6 +192,14 @@ export const login= async (req: Request, res: Response)=>{
       if(studentNumber){
           user= await prisma.users.findUnique( {where: {studentNumber}})
       };
+
+      if(email){
+        user= await prisma.users.findUnique({where: { email }})
+      };
+
+      if(adminNumber){
+        user= await prisma.users.findUnique({where: { adminNumber }})
+      }
 
       if (!user && employeeNumber) {
           user = await prisma.users.findUnique({
@@ -194,8 +214,10 @@ export const login= async (req: Request, res: Response)=>{
           return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      const accessToken = signAccessToken({ userId: user.id, role: user.role });
-      const refreshToken = signRefreshToken({ userId: user.id, role: user.role });
+      const accessToken = signAccessToken({ userId: user.userUuid, role: user.role });
+      const refreshToken = signRefreshToken({ userId: user.userUuid, role: user.role });
+      console.log("ACCESS_TOKEN_SECRET:", process.env.ACCESS_TOKEN_SECRET);
+      console.log("REFRESH_TOKEN_SECRET:", process.env.REFRESH_TOKEN_SECRET);
 
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
@@ -219,6 +241,7 @@ export const login= async (req: Request, res: Response)=>{
               role: user.role,
               studentNumber: user.studentNumber,
               employeeNumber: user.employeeNumber,
+              adminNumber: user.adminNumber
           }
       });
   } catch (err) {
@@ -227,9 +250,16 @@ export const login= async (req: Request, res: Response)=>{
   }
 };
 
-export const logout= async (_req: Request, res: Response)=>{
+export const logout= async (req: Request, res: Response)=>{
+  try {
+    res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
-    res.status(200).json({ message: "Logged out successfully" });
+
+    res.status(200).json({ success: true, message: "Logged out successfully" });
+} catch (err) {
+    console.log("Error in logout controller", err.message);
+    res.status(500).json({ success: false, message: "Internal server error" }); 
+}
 };
 
 export const refreshToken = async (req: Request, res: Response) => {
@@ -239,7 +269,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     
         const decoded = verifyRefreshToken(token) as any;
     
-        const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+        const user = await prisma.users.findUnique({ where: { id: decoded.userId } });
         if (!user) return res.status(401).json({ message: "User not found" });
     
         const newAccessToken = signAccessToken({ userId: user.id, role: user.role });
@@ -261,13 +291,14 @@ export const refreshToken = async (req: Request, res: Response) => {
 export const getMe= async (req: Request, res: Response)=>{
   try {
     const userData= (req as any).user;
+    console.log("req.user:", userData);
 
     if (!userData) {
       return res.status(401).json({ message: "Not authenticated" });
     };
 
     const user = await prisma.users.findUnique({
-      where: { id: userData.userId },
+      where: { userUuid: userData.userId },
       include: {
         student: true,
         teacher: true,
@@ -305,5 +336,13 @@ export const getMe= async (req: Request, res: Response)=>{
     }
 
     return res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const changePassword= async (req: Request, res: Response)=>{
+  try {
+    
+  } catch (err) {
+    
   }
 }

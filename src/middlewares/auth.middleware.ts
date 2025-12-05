@@ -24,6 +24,7 @@ export const authorize = (...roles: string[]) => {
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   console.log("Authorization header:", req.headers.authorization);
+  console.log("Cookies received:", req.cookies);
   const token = req.cookies.accessToken;
 
   if (!token) {
@@ -35,6 +36,10 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
       token,
       process.env.ACCESS_TOKEN_SECRET as string
     ) as JwtPayloadCustom;
+
+    if (!decoded.userId) {
+      return res.status(401).json({ message: "Invalid token: missing userId" });
+    };
 
     (req as any).user = decoded;
 
