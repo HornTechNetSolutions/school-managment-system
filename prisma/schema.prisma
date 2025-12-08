@@ -50,11 +50,6 @@ model users {
   role          Role
   status        Status   @default(ACTIVE)
 
-  studentNumber String?  @unique
-  employeeNumber String? @unique
-  adminNumber String? @unique
-  teacherNumber String? @unique
-
   student       student?
   teacher       teacher?
   parent        parent?
@@ -67,9 +62,9 @@ model users {
 
 model student {
   studentUuid  String   @id @default(uuid())
-  studentName  String  
-  studentEmail String @unique
-  studentNumber String @unique
+  studentNumber String   @unique
+  studentName   String
+  studentEmail  String
 
   userUuid     String   @unique
   user         users     @relation(fields: [userUuid], references: [userUuid])

@@ -21,25 +21,25 @@ async function validateRoleFields(role, body) {
   switch (role.toUpperCase()) {
     case "STUDENT":
       if (!studentNumber) return "Student number required";
-      if (await prisma.users.findUnique({ where: { studentNumber } }))
+      if (await prisma.student.findUnique({ where: { studentNumber } }))
         return "Student number already used";
       break;
 
     case "EMPLOYEE":
       if (!employeeNumber) return "Employee number required";
       if (!employeeRole) return "Employee role required";
-      if (await prisma.users.findUnique({ where: { employeeNumber } }))
+      if (await prisma.employee.findUnique({ where: { employeeNumber } }))
         return "Employee number already used";
       break;
 
     case "ADMIN":
       if (!adminNumber) return "Admin number required";
-      if (await prisma.users.findUnique({ where: { adminNumber } }))
+      if (await prisma.admin.findUnique({ where: { adminNumber } }))
         return "Admin number already used";
       break;
     case "TEACHER":
       if (!teacherNumber) return "Teacher number required";
-      if (await prisma.users.findUnique({ where: { teacherNumber } }))
+      if (await prisma.teacher.findUnique({ where: { teacherNumber } }))
         return "Teacher number already used";
       break;
 
@@ -54,7 +54,8 @@ async function validateRoleFields(role, body) {
 };
 
 async function createProfile(role, user, body) {
-  const { fullName, employeeRole, department, title } = body;
+  const { fullName, employeeRole, department, title, studentNumber,  employeeNumber, 
+    teacherNumber, adminNumber} = body;
 
   switch (role.toUpperCase()) {
     case "STUDENT":
@@ -63,7 +64,7 @@ async function createProfile(role, user, body) {
           studentUuid: user.userUuid,
           studentName: fullName,
           studentEmail: user.email,
-          studentNumber: user.studentNumber,
+          studentNumber,
           userUuid: user.userUuid,
         },
       });
@@ -74,7 +75,7 @@ async function createProfile(role, user, body) {
           employeeUuid: user.userUuid,
           employeeName: fullName,
           employeeEmail: user.email,
-          employeeNumber: user.employeeNumber,
+          employeeNumber,
           userUuid: user.userUuid,
           employeeRole,
           department: department || null,
@@ -97,7 +98,7 @@ async function createProfile(role, user, body) {
         data: {
           teacherUuid: user.userUuid,
           teacherName: fullName,
-          teacherNumber: user.teacherNumber,
+          teacherNumber,
           teacherEmail: user.email,
           userUuid: user.userUuid,
         },
@@ -108,7 +109,7 @@ async function createProfile(role, user, body) {
         data: {
           adminUuid: user.userUuid,
           adminName: fullName,
-          adminNumber: user.adminNumber,
+          adminNumber,
           adminEmail: user.email,
           userUuid: user.userUuid,
         },
@@ -116,7 +117,7 @@ async function createProfile(role, user, body) {
   }
 };
 
-export const signup= async (req: Request, res: Response)=>{
+export const createUser= async (req: Request, res: Response)=>{
   try {
     const body = req.body;
     const { role, email, password } = body;
@@ -138,9 +139,6 @@ export const signup= async (req: Request, res: Response)=>{
         email: body.email,
         password: hashedPassword,
         role: body.role,
-        studentNumber: body.studentNumber || null,
-        employeeNumber: body.employeeNumber || null,
-        adminNumber: body.adminNumber || null,
       },
     });
 
@@ -181,72 +179,91 @@ export const signup= async (req: Request, res: Response)=>{
 
 export const login= async (req: Request, res: Response)=>{
   try {
-      const {password, studentNumber, employeeNumber, email, adminNumber}= req.body;
+    const {password, studentNumber, employeeNumber, email, adminNumber}= req.body;
 
-      if (!password){
-          return res.status(400).json({ message: "Email & password required" })
-      };
+    if (!password){
+        return res.status(400).json({ message: "Email & password required" })
+    };
 
-      let user;
+    let user= null
 
-      if(studentNumber){
-          user= await prisma.users.findUnique( {where: {studentNumber}})
-      };
+    if (!user && email) {
+      user = await prisma.users.findUnique({ where: { email } });
+    };
 
-      if(email){
-        user= await prisma.users.findUnique({where: { email }})
-      };
+    if(studentNumber){
+        const student = await prisma.student.findUnique({
+          where: {studentNumber},
+          include: { user: true },
+        });
+        if (student) user = student.user;
+    };
 
-      if(adminNumber){
-        user= await prisma.users.findUnique({where: { adminNumber }})
-      }
+    if (!user && employeeNumber) {
+      const employee = await prisma.employee.findUnique({
+        where: { employeeNumber },
+        include: { user: true },
+      });
 
-      if (!user && employeeNumber) {
-          user = await prisma.users.findUnique({
-              where: { employeeNumber }
-          });
-      }
+      if (employee) user = employee.user;
+    };
 
-      if (!user) return res.status(401).json({ message: "User not found" });
+    if(!user && adminNumber){
+      const admin= await prisma.admin.findUnique({
+        where: { adminNumber },
+        include: { user: true },
+      });
+      if(admin) user= admin.user;
+    };
 
-      const valid= await bcrypt.compare(password, user.password);
-      if (!valid){
-          return res.status(401).json({ message: "Invalid credentials" });
-      }
+    if (employeeNumber) {
+        user = await prisma.employee.findUnique({
+            where: { employeeNumber }
+        });
+    };
 
-      const accessToken = signAccessToken({ userId: user.userUuid, role: user.role });
-      const refreshToken = signRefreshToken({ userId: user.userUuid, role: user.role });
-      console.log("ACCESS_TOKEN_SECRET:", process.env.ACCESS_TOKEN_SECRET);
-      console.log("REFRESH_TOKEN_SECRET:", process.env.REFRESH_TOKEN_SECRET);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
 
-      res.cookie("accessToken", accessToken, {
+    const valid= await bcrypt.compare(password, user.password);
+    if (!valid){
+        return res.status(401).json({ message: "Invalid credentials" });
+    };
+
+    const accessToken = signAccessToken({ userId: user.userUuid, role: user.role });
+    const refreshToken = signRefreshToken({ userId: user.userUuid, role: user.role });
+    console.log("ACCESS_TOKEN_SECRET:", process.env.ACCESS_TOKEN_SECRET);
+    console.log("REFRESH_TOKEN_SECRET:", process.env.REFRESH_TOKEN_SECRET);
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
+    res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        maxAge: 15 * 60 * 1000, // 15 min
-      });
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
-      res.cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
-
-      return res.status(200).json({
-          success: true,
-          accessToken,
-          user: {
-              id: user.id,
-              fullName: user.fullName,
-              email: user.email,
-              role: user.role,
-              studentNumber: user.studentNumber,
-              employeeNumber: user.employeeNumber,
-              adminNumber: user.adminNumber
-          }
-      });
+    return res.status(200).json({
+      success: true,
+      accessToken,
+      user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          studentNumber,
+          employeeNumber,
+          adminNumber
+      }
+    });
   } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Internal server error" });
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
