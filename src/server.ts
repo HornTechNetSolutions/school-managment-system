@@ -5,6 +5,9 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes.ts"
 import adminRoutes from "./routes/admin.routes.ts"
 // import prisma from "./config/prisma.ts"
+import Employee from "./routes/employee/index.ts";
+
+
 
 dotenv.config();
 
@@ -21,6 +24,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Employees API
+app.use("/api/employee", Employee);
 
 // app.get("/", async (req, res) => {
 //     const users = await prisma.user.findMany();
