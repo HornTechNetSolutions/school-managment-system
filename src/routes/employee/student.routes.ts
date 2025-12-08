@@ -4,6 +4,7 @@ import * as studentController from '../../controllers/employee/student.controlle
 const router = Router();
 
 router.get('/', studentController.getAllStudents);
-
+router.get('/:id', studentController.getStudentDetails);
+router.put('/:id/contact-info', studentController.updateStudentContact);
 
 export default router;
