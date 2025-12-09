@@ -1,10 +1,10 @@
 import express from "express"
-import { login, logout, refreshToken, getMe, signup, changePassword } from "../controllers/auth.controller.ts"
+import { login, logout, refreshToken, getMe, changePassword } from "../controllers/auth.controller.ts"
 import { authenticate } from "../middlewares/auth.middleware.ts";
 
 const router = express.Router();
 
-router.post("/signup", signup);
+// router.post("/signup", signup);
 router.post("/login", login);
 router.post("/logout", logout);
 router.post("/refresh", refreshToken);
