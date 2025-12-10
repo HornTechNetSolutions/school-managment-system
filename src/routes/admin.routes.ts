@@ -1,12 +1,41 @@
 import express from "express"
 import { 
-    assignChildParent, updateProfile, deleteUser, getUser, getUsers, updateUser 
+    assignChildParent, 
+    updateProfile, 
+    deleteUser, 
+    getUser, 
+    getUsers, 
+    updateUser 
 } from "../controllers/admin.controllers.ts";
+import { 
+    createClass, 
+    deleteClass, 
+    getClass, 
+    getClasses, 
+    updateClass, 
+    assignStudentClass 
+} from "../controllers/class.contorller.ts";
+import { 
+    addSubject, 
+    assignSubjectToClass, 
+    assignSubjectToTeacher, 
+    deleteSubject, 
+    getSubject, 
+    getSubjects, 
+    removeSubjectFromTeacher, 
+    updateSubject 
+} from "../controllers/subject.controller.ts";
+import { authenticate, authorize } from "../middlewares/auth.middleware.ts";
 import { createUser } from "../controllers/auth.controller.ts";
 import { 
-    createClass, deleteClass, getClass, getClasses, updateClass, assignStudentClass 
-} from "../controllers/class.contorller.ts";
-import { authenticate, authorize } from "../middlewares/auth.middleware.ts";
+    assignResults, 
+    createExam, 
+    getExam, 
+    getExamResults, 
+    getExams, 
+    removeExam, 
+    updateExam 
+} from "../controllers/exam.controller.ts";
 
 
 const router= express.Router()
@@ -24,7 +53,6 @@ router.delete("/users/:role/:uuid", deleteUser);
 router.put("/update-profile/:userUuid", authenticate, authorize('ADMIN'), updateProfile );
 router.post("/:studentUuid/assign-parent", authenticate, authorize('ADMIN'), assignChildParent)
 
-
 //CLASS MANAGEMENT
 router.post("/class/create", authenticate, authorize('ADMIN'), createClass);
 router.get("/class/all", authenticate, authorize('ADMIN'), getClasses);
@@ -32,6 +60,25 @@ router.get("/class/:classUuid", authenticate, authorize('ADMIN'), getClass);
 router.put("/class/:classUuid/update", authenticate, authorize('ADMIN'), updateClass); 
 router.delete("/class/:classUuid/delete", authenticate, authorize('ADMIN'), deleteClass);
 router.post("/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass);
+
+//Subject Management
+router.post("/subject/create", authenticate, authorize('ADMIN'), addSubject);
+router.get("/subject/all", authenticate, authorize('ADMIN'), getSubjects);
+router.get("/subject/:subjuctUuid", authenticate, authorize('ADMIN'), getSubject);
+router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN"), updateSubject);
+router.delete("/subject/:subjectUuid", authenticate, authorize('ADMIN'),deleteSubject);
+router.post("/subject/assign-class/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToClass);
+router.post("/subject/assign-teacher/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToTeacher);
+router.post("/subject/remove-teacher/:subjectUuid", authenticate, authorize('ADMIN'), removeSubjectFromTeacher);
+
+//Exam routes
+router.post("/exam/create", authenticate, authorize("TEACHER","ADMIN"), createExam)
+router.get("/exam/all", authenticate, getExams)
+router.get("exam/:examUuid", authenticate, getExam)
+router.put("exam/:examUuid", authenticate, authorize("TEACHER","ADMIN"), updateExam)
+router.delete("exam/:examUuid", authenticate, authorize("ADMIN"), removeExam)
+router.post("exam/:examUuid/result", authenticate, authorize("TEACHER"), assignResults)
+router.get("exam/:examUuid/results", authenticate, getExamResults)
 
 // router.post("/:studentUuid/assign-teacher", authenticate, authorize('ADMIN'), assignTeacher)
 // router.get("/:studentUuid/classes", authenticate, authorize('ADMIN'), getClasses)
