@@ -35,7 +35,7 @@ export const getSubjects= async(req: Request, res: Response)=>{
 
 export const getSubject= async(req: Request, res: Response)=>{
     try {
-        const {subjectUuid}= req.params
+        const {subjectUuid}= req.params;
         const subject= await prisma.subject.findUnique({
             where: {subjectUuid},
             include: {

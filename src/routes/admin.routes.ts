@@ -57,14 +57,14 @@ router.post("/:studentUuid/assign-parent", authenticate, authorize('ADMIN'), ass
 router.post("/class/create", authenticate, authorize('ADMIN'), createClass);
 router.get("/class/all", authenticate, authorize('ADMIN'), getClasses);
 router.get("/class/:classUuid", authenticate, authorize('ADMIN'), getClass);
-router.put("/class/:classUuid/update", authenticate, authorize('ADMIN'), updateClass); 
-router.delete("/class/:classUuid/delete", authenticate, authorize('ADMIN'), deleteClass);
-router.post("/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass);
+router.put("/class/:classUuid", authenticate, authorize('ADMIN'), updateClass); 
+router.delete("/class/:classUuid", authenticate, authorize('ADMIN'), deleteClass);
+router.post("/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass); // not tested
 
 //Subject Management
 router.post("/subject/create", authenticate, authorize('ADMIN'), addSubject);
 router.get("/subject/all", authenticate, authorize('ADMIN'), getSubjects);
-router.get("/subject/:subjuctUuid", authenticate, authorize('ADMIN'), getSubject);
+router.get("/subject/:subjectUuid", authenticate, authorize('ADMIN'), getSubject);
 router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN"), updateSubject);
 router.delete("/subject/:subjectUuid", authenticate, authorize('ADMIN'),deleteSubject);
 router.post("/subject/assign-class/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToClass);
