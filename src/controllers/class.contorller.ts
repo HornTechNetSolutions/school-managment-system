@@ -12,15 +12,13 @@ export const createClass= async (req: Request, res: Response)=>{
                 name,
                 grade: Number(grade),
                 //class-subject relation
-                classSubject: {
-                    create: subjectUuids.map((uuid: string)=> ({
-                        subjectUuid: uuid
-                    })),
-                },
+                ClassSubject: subjectUuids.length
+                    ? { create: subjectUuids.map((uuid: any) => ({ subjectUuid: uuid })) }
+                    : undefined,
                 //Connect class to teachers
-                teacher:{
-                    connect: teacherUuids.map((uuid: string)=> ({teacherUuid: uuid}))
-                }
+                teacher: teacherUuids.length
+                    ? { connect: teacherUuids.map((uuid: any) => ({ teacherUuid: uuid })) }
+                    : undefined
             }
         });
 
@@ -40,7 +38,7 @@ export const getClasses= async (req: Request, res: Response)=>{
             include: {
                 students: true,
                 teacher: true,
-                classSubject: {
+                ClassSubject: {
                     include: {
                         subject: true
                     },
@@ -91,14 +89,17 @@ export const updateClass= async (req: Request, res: Response)=>{
             data: {
                 name,
                 grade: grade? Number(grade) : undefined,
-                classSubject: {
+                ClassSubject: {
                     deleteMany: {},
-                    create: subjectUuids.map((uuid: string)=> ({
-                        subjectUuid: uuid,
-                    }))
+                    create: subjectUuids.length
+                     ? { create: subjectUuids.map((uuid: any) => ({ subjectUuid: uuid })) }
+                     : undefined, 
                 },
+                 //Connect class to teachers
                 teacher: {
-                    set: teacherUuids.map((uuid: string) => ({teacherUuid: uuid}))
+                    set: teacherUuids.length
+                          ? { connect: teacherUuids.map((uuid: any) => ({ teacherUuid: uuid })) }
+                           : undefined
                 },
             },
             include: {
@@ -152,5 +153,4 @@ export const assignStudentClass= async (req: Request, res: Response)=>{
     } catch (err) {
         
     }
-};
-
+}

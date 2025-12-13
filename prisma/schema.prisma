@@ -29,6 +29,14 @@ enum Status {
   INACTIVE
 }
 
+enum ExamType {
+  QUIZ
+  MIDTERM
+  FINAL
+  TEST
+  PROJECT
+}
+
 enum EmployeeRole {
   PRINCIPAL
   VICE_PRINCIPAL
@@ -76,6 +84,7 @@ model student {
   class        Class?   @relation(fields: [classUuid], references: [classUuid])
 
   submissions  AssignmentSubmission[]
+  ExamResult ExamResult[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -104,7 +113,7 @@ model teacher {
   userUuid     String @unique
   user         users   @relation(fields: [userUuid], references: [userUuid])
 
-  // subject      String?
+  subject      String?
   classes      Class[]
   assignments  Assignment[]
 
@@ -112,8 +121,9 @@ model teacher {
   updatedAt DateTime @updatedAt
 
   AssignmentSubmission AssignmentSubmission[]
-
   TeacherSubject TeacherSubject[]
+  Exam Exam[]
+  ExamResult ExamResult[]
 }
 
 model admin {
@@ -149,11 +159,13 @@ model employee {
 model Subject {
   subjectUuid String @id @default(uuid())
   name        String
-  code        String?  @unique 
+  code        String?  @unique
+  grade       String?  @unique
 
   classes     ClassSubject[]
   teachers    TeacherSubject[]
   Assignment Assignment[]
+  Exam Exam[]
 }
 
 model Class {
@@ -163,13 +175,54 @@ model Class {
   
   students   student[]
   assignments Assignment[]
-
   ClassSubject ClassSubject[]
+   teacher teacher[]
+  Exam Exam[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  teacher teacher[]
+ 
+}
+
+model Exam {
+  examUuid      String   @id @default(uuid())
+  title         String
+  description   String?
+  examType      ExamType
+  examDate      DateTime
+  startTime     DateTime
+  endTime       DateTime
+  totalMarks    Int
+
+  // Relations
+  classUuid     String
+  subjectUuid   String
+  teacherUuid   String
+
+  class         Class     @relation(fields: [classUuid], references: [classUuid])
+  subject       Subject   @relation(fields: [subjectUuid], references: [subjectUuid])
+  teacher       teacher   @relation(fields: [teacherUuid], references: [teacherUuid])
+
+  results       ExamResult[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ExamResult {
+  resultUuid    String @id @default(uuid())
+  examUuid      String
+  studentUuid   String
+
+  marksObtained Int?
+  gradedByUuid  String?
+  gradedAt      DateTime?
+  comment       String?
+
+  exam         Exam     @relation(fields: [examUuid], references: [examUuid])
+  student      student  @relation(fields: [studentUuid], references: [studentUuid])
+  gradedBy     teacher? @relation(fields: [gradedByUuid], references: [teacherUuid])
 }
 
 model ClassSubject {
