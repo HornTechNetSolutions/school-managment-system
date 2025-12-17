@@ -48,6 +48,28 @@ enum EmployeeRole {
   CLEANER
   IT_SUPPORT
   OFFICE_STAFF
+  REGISTRAR
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum FeeStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+}
+
+enum Permission {
+  MANAGE_STUDENTS
+  MANAGE_ATTENDANCE
+  MANAGE_FEES
+  VIEW_REPORTS
+  MANAGE_EXAMS
 }
 
 model users {
@@ -72,13 +94,16 @@ model student {
   studentUuid  String   @id @default(uuid())
   studentNumber String   @unique
   studentName   String
-  studentEmail  String
+  studentEmail  String?
 
-  userUuid     String   @unique
-  user         users     @relation(fields: [userUuid], references: [userUuid])
+  userUuid String? @unique
+  user users? @relation(fields: [userUuid], references: [userUuid])
   
   parentUuid   String?
   parent       parent?  @relation(fields: [parentUuid], references: [parentUuid])
+
+  registeredByUuid String
+  registeredBy employee @relation(fields: [registeredByUuid], references: [employeeUuid])
 
   classUuid    String?
   class        Class?   @relation(fields: [classUuid], references: [classUuid])
@@ -88,6 +113,10 @@ model student {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  Attendance Attendance[]
+
+  Fee Fee[]
 }
 
 model parent {
@@ -154,6 +183,8 @@ model employee {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  student student[]
 }
 
 model Subject {
@@ -182,7 +213,7 @@ model Class {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
- 
+  Attendance Attendance[]
 }
 
 model Exam {
@@ -287,6 +318,50 @@ model AssignmentSubmission {
   assignment Assignment @relation(fields: [assignmentUuid], references: [assignmentUuid])
   student    student    @relation(fields: [studentUuid], references: [studentUuid])
   gradedBy   teacher?   @relation(fields: [gradedByUuid], references: [teacherUuid])
+}
+
+model Attendance {
+  attendanceUuid String @id @default(uuid())
+
+  studentUuid String
+  classUuid   String
+  date        DateTime
+
+  status      AttendanceStatus
+  markedByUuid String? // teacher or employee
+  markedAt    DateTime @default(now())
+
+  student student @relation(fields: [studentUuid], references: [studentUuid])
+  class   Class   @relation(fields: [classUuid], references: [classUuid])
+
+  @@unique([studentUuid, date])
+  @@index([classUuid, date])
+}
+
+model Fee {
+  feeUuid     String @id @default(uuid())
+  studentUuid String
+
+  title       String
+  amount      Float
+  dueDate     DateTime
+  status      FeeStatus @default(PENDING)
+
+  student     student @relation(fields: [studentUuid], references: [studentUuid])
+  payments    Payment[]
+
+  createdAt   DateTime @default(now())
+}
+
+model Payment {
+  paymentUuid String @id @default(uuid())
+  feeUuid     String
+
+  amount      Float
+  method      String   // CASH, CARD, TRANSFER
+  paidAt      DateTime @default(now())
+
+  fee         Fee @relation(fields: [feeUuid], references: [feeUuid])
 }
 
 // model refreshToken {

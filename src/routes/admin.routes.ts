@@ -36,7 +36,18 @@ import {
     removeExam, 
     updateExam 
 } from "../controllers/exam.controller.ts";
-
+import { registerStudent } from "../controllers/employee.controller.ts";
+import { 
+    getAttendanceToday, 
+    getFeesCollectedThisMonth, 
+    getTotalParents, 
+    getTotalStudents, 
+    getTotalTeachers, 
+    getUpcomingExams,
+    getDashboardOverview, 
+    getMonthlyAttendanceStats, 
+    getMonthlyFeesStats
+} from "../controllers/dashboarrd.controller.ts";
 
 const router= express.Router()
 
@@ -67,18 +78,34 @@ router.get("/subject/all", authenticate, authorize('ADMIN'), getSubjects);
 router.get("/subject/:subjectUuid", authenticate, authorize('ADMIN'), getSubject);
 router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN"), updateSubject);
 router.delete("/subject/:subjectUuid", authenticate, authorize('ADMIN'),deleteSubject);
-router.post("/subject/assign-class/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToClass);
+router.post("/subject/assign-class/:classUuid", authenticate, authorize('ADMIN'), assignSubjectToClass);
 router.post("/subject/assign-teacher/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToTeacher);
 router.post("/subject/remove-teacher/:subjectUuid", authenticate, authorize('ADMIN'), removeSubjectFromTeacher);
 
 //Exam routes
-router.post("/exam/create", authenticate, authorize("TEACHER","ADMIN"), createExam)
-router.get("/exam/all", authenticate, getExams)
-router.get("exam/:examUuid", authenticate, getExam)
-router.put("exam/:examUuid", authenticate, authorize("TEACHER","ADMIN"), updateExam)
-router.delete("exam/:examUuid", authenticate, authorize("ADMIN"), removeExam)
-router.post("exam/:examUuid/result", authenticate, authorize("TEACHER"), assignResults)
-router.get("exam/:examUuid/results", authenticate, getExamResults)
+router.post("/exam/create", authenticate, authorize("TEACHER","ADMIN"), createExam);
+router.get("/exam/all", authenticate, getExams);
+router.get("exam/:examUuid", authenticate, getExam);
+router.put("exam/:examUuid", authenticate, authorize("TEACHER","ADMIN"), updateExam);
+router.delete("exam/:examUuid", authenticate, authorize("ADMIN"), removeExam);
+router.post("exam/:examUuid/result", authenticate, authorize("TEACHER"), assignResults);
+router.get("exam/:examUuid/results", authenticate, getExamResults);
+
+//Employee role
+router.post("/students/register", authenticate, authorize("EMPLOYEE"), registerStudent);
+
+//DASHBOARD ANALYTICS
+router.get("/dashboard/totalStudents", authenticate, authorize('ADMIN'), getTotalStudents);
+router.get("/dashboard/totalParents", authenticate, authorize('ADMIN'), getTotalParents);
+router.get("/dashboard/totalTeachers", authenticate, authorize('ADMIN'), getTotalTeachers);
+router.get("/dashboard/attendanceToday", authenticate, authorize('ADMIN'), getAttendanceToday);
+router.get("/dashboard/feesCollected", authenticate, authorize('ADMIN'), getFeesCollectedThisMonth);
+router.get("/dashboard/upcomingExams", authenticate, authorize('ADMIN'), getUpcomingExams);
+
+router.get("/dashboard/overview", authenticate, authorize("ADMIN"), getDashboardOverview);
+router.get("/dashboard/charts/attendance", authenticate, authorize("ADMIN"), getMonthlyAttendanceStats);
+router.get("/dashboard/charts/fees", authenticate, authorize("ADMIN"), getMonthlyFeesStats);
+
 
 // router.post("/:studentUuid/assign-teacher", authenticate, authorize('ADMIN'), assignTeacher)
 // router.get("/:studentUuid/classes", authenticate, authorize('ADMIN'), getClasses)
@@ -172,13 +199,7 @@ router.get("exam/:examUuid/results", authenticate, getExamResults)
 // router.post("/announcement/all", authenticate, authorize('ADMIN'), getAnnouncements);
 // router.delete("/announcement/:announcementUuid", authenticate, authorize('ADMIN'), deleteAnnouncement);
 
-//DASHBOARD ANALYTICS
-// router.get("/dashboard/totalStudents", authenticate, authorize('ADMIN'), getTotalStudents)
-// router.get("/dashboard/totalParents", authenticate, authorize('ADMIN'), getTotalParents)
-// router.get("/dashboard/totalTeachers", authenticate, authorize('ADMIN'), getTotalTeachers)
-// router.get("/dashboard/attendanceToday", authenticate, authorize('ADMIN'), getAttendanceToday)
-// router.get("/dashboard/feesCollected", authenticate, authorize('ADMIN'), getFeesCollectedThisMonth)
-// router.get("/dashboard/upcomingExams", authenticate, authorize('ADMIN'), getUpcomingExams)
+
 export default router;
 
 //ADMIN – AUTH / ACCOUNT
@@ -187,3 +208,8 @@ export default router;
 // GET    /admin/me
 // PUT    /admin/update-profile
 // PUT    /admin/change-password
+
+//employee
+// POST   /students/register       → register student
+// GET    /students/:id            → view student
+// PATCH  /students/:id/class      → assign class

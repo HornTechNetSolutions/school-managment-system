@@ -168,7 +168,6 @@ export const deleteUser= async (req: Request, res: Response)=>{
         const { role, uuid } = req.params;
 
         const model = getModel(role);
-    
         if (!model) return res.status(400).json({ message: "Invalid role" });
     
         await model.delete({ where: { userUuid: uuid } });
@@ -236,12 +235,4 @@ export const assignChildParent= async (req: Request, res: Response)=>{
             message: "Internal server error"
         });
     };
-};
-
-export const getChildren= async (req: Request, res: Response)=>{
-    try {
-        
-    } catch (err) {
-        
-    }
 };
