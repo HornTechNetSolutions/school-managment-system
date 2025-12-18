@@ -9,6 +9,7 @@ export interface JwtPayloadCustom extends jwt.JwtPayload {
 export const authorize = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
+    console.log("AUTH USER:", req.user);
 
     if (!user){
       return res.status(401).json({ message: "Unauthorized" });

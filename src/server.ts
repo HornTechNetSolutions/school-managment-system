@@ -4,7 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes.ts"
 import adminRoutes from "./routes/admin.routes.ts"
-// import prisma from "./config/prisma.ts"
+import employeeRoutes from "./routes/employee.routes.ts"
 import Employee from "./routes/employee/index.ts";
 
 
@@ -24,14 +24,15 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/employee", employeeRoutes);
 
 // Employees API
 app.use("/api/employee", Employee);
 
-// app.get("/", async (req, res) => {
-//     const users = await prisma.user.findMany();
-//     res.json(users);
-// });
+app.use((req, _res, next) => {
+    console.log("BODY:", req.body);
+    next();
+});
 
 app.listen(PORT, ()=>{
     console.log("Server running on:" + PORT)

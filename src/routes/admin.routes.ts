@@ -16,7 +16,7 @@ import {
     assignStudentClass 
 } from "../controllers/class.contorller.ts";
 import { 
-    addSubject, 
+    createSubject, 
     assignSubjectToClass, 
     assignSubjectToTeacher, 
     deleteSubject, 
@@ -26,7 +26,7 @@ import {
     updateSubject 
 } from "../controllers/subject.controller.ts";
 import { authenticate, authorize } from "../middlewares/auth.middleware.ts";
-import { createUser } from "../controllers/auth.controller.ts";
+import { createUser } from "../controllers/user.controller.ts";
 import { 
     assignResults, 
     createExam, 
@@ -49,6 +49,7 @@ import {
     getMonthlyFeesStats
 } from "../controllers/dashboarrd.controller.ts";
 
+
 const router= express.Router()
 
 router.use(authenticate, authorize("ADMIN"));
@@ -70,16 +71,16 @@ router.get("/class/all", authenticate, authorize('ADMIN'), getClasses);
 router.get("/class/:classUuid", authenticate, authorize('ADMIN'), getClass);
 router.put("/class/:classUuid", authenticate, authorize('ADMIN'), updateClass); 
 router.delete("/class/:classUuid", authenticate, authorize('ADMIN'), deleteClass);
-router.post("/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass); // not tested
+router.post("/class/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass); // not tested
 
 //Subject Management
-router.post("/subject/create", authenticate, authorize('ADMIN'), addSubject);
-router.get("/subject/all", authenticate, authorize('ADMIN'), getSubjects);
-router.get("/subject/:subjectUuid", authenticate, authorize('ADMIN'), getSubject);
-router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN"), updateSubject);
+router.post("/subject/create", authenticate, authorize('ADMIN'), createSubject);
+router.get("/subject/all", authenticate, authorize("TEACHER","ADMIN", "REGISTRAR"), getSubjects);
+router.get("/subject/:subjectUuid", authenticate, authorize("TEACHER","ADMIN", "REGISTRAR"), getSubject);
+router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN", "REGISTRAR"), updateSubject);
 router.delete("/subject/:subjectUuid", authenticate, authorize('ADMIN'),deleteSubject);
-router.post("/subject/assign-class/:classUuid", authenticate, authorize('ADMIN'), assignSubjectToClass);
-router.post("/subject/assign-teacher/:subjectUuid", authenticate, authorize('ADMIN'), assignSubjectToTeacher);
+router.post("/subject/assign-class/:classUuid", authenticate, authorize('ADMIN', "REGISTRAR"), assignSubjectToClass);
+router.post("/subject/:subjectUuid/assign-teacher", authenticate, authorize('ADMIN'), assignSubjectToTeacher); //mismatch
 router.post("/subject/remove-teacher/:subjectUuid", authenticate, authorize('ADMIN'), removeSubjectFromTeacher);
 
 //Exam routes

@@ -1,7 +1,7 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import prisma from "../config/prisma.ts"
 
-export const addSubject= async (req: Request, res: Response)=>{
+export const createSubject= async (req: Request, res: Response)=>{
     try {
         const {name, code, grade}= req.body;
         if (!name) {
@@ -12,9 +12,10 @@ export const addSubject= async (req: Request, res: Response)=>{
         });
         return res.status(201).json({
             message: "Subject created successfully",
-            subject,
+            data: subject,
         });
     } catch (err) {
+        console.error("Create Subject error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
@@ -23,12 +24,40 @@ export const getSubjects= async(req: Request, res: Response)=>{
     try {
         const subjects= await prisma.subject.findMany({
             include: {
-                classes: true,
-                teachers: true
+                classes:{
+                    include: {
+                        class: {
+                            select: {
+                                classUuid: true,
+                                name: true
+                            }
+                        }
+                    }
+                },
+                teachers: {
+                    include: {
+                        teacher: {
+                            select: {
+                                teacherUuid: true,
+                                teacherName: true
+                            }
+                        }
+                    }
+                },
             }
         });
-        return res.status(200).json(subjects);
+
+        const normalized= subjects.map(s => ({
+            subjectUuid: s.subjectUuid,
+            name: s.name,
+            code: s.code,
+            grade: s.grade,
+            classes: s.classes.map(c => c.class),
+            teachers: s.teachers.map(t => t.teacher),
+        }))
+        return res.status(200).json({data: normalized});
     } catch (err) {
+        console.error("get Subjects error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
@@ -36,20 +65,48 @@ export const getSubjects= async(req: Request, res: Response)=>{
 export const getSubject= async(req: Request, res: Response)=>{
     try {
         const {subjectUuid}= req.params;
-        const subject= await prisma.subject.findUnique({
+        const subject= await prisma.Subject.findUnique({
             where: {subjectUuid},
             include: {
-                classes: true,
-                teachers: true
+                classes:{
+                    include: {
+                        class: {
+                            select: {
+                                classUuid: true,
+                                name: true
+                            }
+                        }
+                    }
+                },
+                teachers: {
+                    include: {
+                        teacher: {
+                            select: {
+                                teacherUuid: true,
+                                teacherName: true,
+                            }
+                        }
+                    }
+                }
             }
         });
 
         if (!subject) {
             return res.status(404).json({ message: "Subject not found" });
         };
+
+        const normalized = {
+            subjectUuid: subject.subjectUuid,
+            name: subject.name,
+            code: subject.code,
+            grade: subject.grade,
+            classes: subject.classes.map(c => c.class),
+            teachers: subject.teachers.map(t => t.teacher),
+        };
       
-        return res.status(200).json(subject);
+        return res.status(200).json({data: normalized});
     } catch (err) {
+        console.error("Get Subject error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
@@ -63,16 +120,31 @@ export const updateSubject= async(req: Request, res: Response)=>{
             return res.status(400).json({success: false, message: "Subject not found!"})
         }
 
+        const subjectExists = await prisma.Subject.findUnique({ where: { subjectUuid } });
+        if (!subjectExists) {
+            return res.status(404).json({ message: "Subject not found" });
+        }
+
         const subject = await prisma.subject.update({
         where: { subjectUuid },
         data: { name, code, grade },
         });
 
+        // await logAudit({
+        //     userUuid: req.user.userUuid,
+        //     action: "UPDATE",
+        //     entity: "SUBJECT",
+        //     entityId: subjectUuid,
+        //     oldValue: oldSubject,
+        //     newValue: updated,
+        //   });
+
         return res.status(200).json({
-        message: "Subject updated successfully",
-        subject,
+            message: "Subject updated successfully",
+            data: subject,
         });
     } catch (err) {
+        console.error("Update Subject error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
@@ -84,49 +156,65 @@ export const deleteSubject= async(req: Request, res: Response)=>{
             return res.status(400).json({success: false, message: "Subject not found!"})
         };
 
-        await prisma.subject.delete({
-            where: { subjectUuid },
+        const subjectExists = await prisma.Subject.findUnique({ where: { subjectUuid } });
+        if (!subjectExists) {
+            return res.status(404).json({ message: "Subject not found" });
+        }
+
+        const [usedInClass, usedInTeacher, usedInExam] = await Promise.all([
+            prisma.classSubject.findFirst({ where: { subjectUuid } }),
+            prisma.teacherSubject.findFirst({ where: { subjectUuid } }),
+            prisma.exam.findFirst({ where: { subjectUuid } }),
+        ]);
+
+        if (usedInClass || usedInTeacher || usedInExam) {
+        return res.status(400).json({
+            success: false,
+            message: "Cannot delete subject. It is in use.",
         });
+        }
+
+        await prisma.Subject.delete({ where: { subjectUuid }});
       
         return res.status(200).json({ message: "Subject deleted successfully" });
     } catch (err) {
+        console.error("Delete Subject error:", err);
         return res.status(500).json({ message: err.message }); 
     }
 };
 
-export const assignSubjectToClass = async (req: Request, res: Response) => {
-    try {
-      const { classUuid } = req.params;         
-      const { subjectUuid } = req.body;        
+// export const assignSubjectToClass = async (req: Request, res: Response) => {
+//     try {
+//       const { classUuid } = req.params;         
+//       const { subjectUuid } = req.body;        
   
-      if (!classUuid || !subjectUuid) {
-        return res.status(400).json({ message: "classUuid and subjectUuid required" });
-      }
+//       if (!classUuid || !subjectUuid) {
+//         return res.status(400).json({ message: "classUuid and subjectUuid required" });
+//       }
   
-      const [cls, subj] = await Promise.all([
-        prisma.class.findUnique({ where: { classUuid } }),
-        prisma.subject.findUnique({ where: { subjectUuid } })
-      ]);
+//       const [cls, subj] = await Promise.all([
+//         prisma.class.findUnique({ where: { classUuid } }),
+//         prisma.subject.findUnique({ where: { subjectUuid } })
+//       ]);
   
-      if (!cls) return res.status(404).json({ message: "Class not found" });
-      if (!subj) return res.status(404).json({ message: "Subject not found" });
+//       if (!cls) return res.status(404).json({ message: "Class not found" });
+//       if (!subj) return res.status(404).json({ message: "Subject not found" });
   
-      await prisma.classSubject.create({
-        data: { classUuid, subjectUuid }
-      });
+//       await prisma.classSubject.create({
+//         data: { classUuid, subjectUuid }
+//       });
   
-      return res.status(201).json({ message: "Subject assigned to class successfully" });
-    } catch (err: any) {
-      if (err.code === "P2002") {
-        return res.status(400).json({ message: "Subject already assigned to this class" });
-      }
-      console.error(err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-};
+//       return res.status(201).json({ message: "Subject assigned to class successfully" });
+//     } catch (err: any) {
+//       if (err.code === "P2002") {
+//         return res.status(400).json({ message: "Subject already assigned to this class" });
+//       }
+//       console.error(err);
+//       return res.status(500).json({ message: "Internal server error" });
+//     }
+// };
   
-
-export const addSubjectsToClass= async (req: Request, res: Response)=>{
+export const assignSubjectToClass= async (req: Request, res: Response)=>{
     try {
         const {classUuid}= req.params;
         const { subjectUuids = [] } = req.body;
@@ -166,6 +254,7 @@ export const addSubjectsToClass= async (req: Request, res: Response)=>{
                 message: "Subject is already assigned to this class",
             });
         }
+        console.error("Assign Subject To Class error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
@@ -179,8 +268,8 @@ export const updateClassSubjects = async (req: Request, res: Response) => {
         return res.status(400).json({ message: "classUuid required" });
       }
   
-      const class = await prisma.class.findUnique({ where: { classUuid } });
-      if (!class) {
+      const classes = await prisma.class.findUnique({ where: { classUuid } });
+      if(!classes) {
         return res.status(404).json({ message: "Class not found" });
       }
   
@@ -218,18 +307,17 @@ export const updateClassSubjects = async (req: Request, res: Response) => {
         include: { ClassSubject: { include: { subject: true } } }
       });
   
-      return res.status(200).json({ message: "Class subjects updated", class: updated });
+      return res.status(200).json({ message: "Class subjects updated", data: updated });
     } catch (err) {
-      console.error(err);
+      console.error("Update Class Subjects error:", err);
       return res.status(500).json({ message: "Internal server error" });
     }
 };
-  
 
 export const removeSubjectFromClass= async(req: Request, res: Response)=>{
     try {
         const {classUuid, subjectUuid}= req.body;
-        if(!subjectUuid || classUuid!){
+        if(!subjectUuid || !classUuid!){
             return res.status(401).json({success: false, message: "Class or Subject not found"})
         };
         await prisma.classSubject.delete({
@@ -242,23 +330,31 @@ export const removeSubjectFromClass= async(req: Request, res: Response)=>{
             message: "Subject removed from class",
         });
     } catch (err: any) {
+        console.error("Remove Subject From Class error:", err);
         return res.status(500).json({ message: err.message });
     }
 };
 
 export const assignSubjectToTeacher = async (req: Request, res: Response) =>{
     try {
-        const { teacherUuid, subjectUuid } = req.body;
+        const {subjectUuid}= req.params
+        const { teacherUuid } = req.body;
 
-        await prisma.teacherSubject.create({
+        const subjectExists = await prisma.subject.findUnique({ where: { subjectUuid } });
+        if (!subjectExists) {
+            return res.status(404).json({ message: "Subject not found" });
+        };
+
+        const assigned= await prisma.teacherSubject.create({
             data: {
               teacherUuid,
               subjectUuid,
             },
         });
-      
+
         return res.status(201).json({
-        message: "Subject assigned to teacher successfully",
+            message: "Subject assigned to teacher successfully",
+            data: assigned
         });
     } catch (err: any) {
         if (err.code === "P2002") {
@@ -266,13 +362,91 @@ export const assignSubjectToTeacher = async (req: Request, res: Response) =>{
               message: "Teacher already teaches this subject",
             });
         }
+        console.error("Assign Subject To Teacher error:", err);
         return res.status(500).json({ message: err.message });
     };
 };
 
+export const assignSubjectsToTeacher = async (req: Request, res: Response) => {
+    try {
+      const { teacherUuid } = req.params;
+      const { subjectUuids = [] } = req.body;
+  
+      if (!Array.isArray(subjectUuids) || subjectUuids.length === 0) {
+        return res.status(400).json({ message: "subjectUuids required" });
+      }
+  
+      const teacher = await prisma.teacher.findUnique({ where: { teacherUuid } });
+      if (!teacher) {
+        return res.status(404).json({ message: "Teacher not found" });
+      }
+  
+      const data = subjectUuids.map((subjectUuid: string) => ({
+        teacherUuid,
+        subjectUuid,
+      }));
+  
+      const assigned= await prisma.teacherSubject.createMany({
+        data,
+        skipDuplicates: true,
+      });
+  
+      return res.status(201).json({
+        success: true,
+        message: "Subjects assigned to teacher",
+        data: assigned
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const updateTeacherSubjects= async (req: Request, res: Response)=>{
+    try {
+        const {teacherUuid}= req.params
+        const {subjectUuids = []}= req.body;
+
+        if (!Array.isArray(subjectUuids) || subjectUuids.length === 0) {
+            return res.status(400).json({ message: "subjectUuids required" });
+        };
+
+        const updated= await prisma.$transaction(async (tx) => {
+            await tx.teacherSubject.deleteMany({
+              where: { teacherUuid },
+            });
+      
+            if (subjectUuids.length) {
+              await tx.teacherSubject.createMany({
+                data: subjectUuids.map((subjectUuid: string) => ({
+                  teacherUuid,
+                  subjectUuid,
+                })),
+                skipDuplicates: true,
+              });
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Teacher subjects updated",
+            data: updated
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}
+
 export const removeSubjectFromTeacher= async(req: Request, res: Response)=>{
     try {
         const { teacherUuid, subjectUuid } = req.body;
+
+        const subjectExists = await prisma.subject.findUnique({ where: { subjectUuid } });
+        if (!subjectExists) {
+            return res.status(404).json({ message: "Subject not found" });
+        }
+
         await prisma.teacherSubject.delete({
             where: {
               teacherUuid_subjectUuid: { teacherUuid, subjectUuid },
@@ -283,6 +457,7 @@ export const removeSubjectFromTeacher= async(req: Request, res: Response)=>{
         message: "Subject removed from teacher",
         });
     } catch (err:any) {
+        console.error("Remove Subject From Teacher error:", err);
         return res.status(500).json({ message: err.message });
     }
 };

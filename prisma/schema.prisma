@@ -191,12 +191,15 @@ model Subject {
   subjectUuid String @id @default(uuid())
   name        String
   code        String?  @unique
-  grade       String?  @unique
+  grade       String?
 
   classes     ClassSubject[]
   teachers    TeacherSubject[]
   Assignment Assignment[]
   Exam Exam[]
+
+  @@index([grade])
+  @@index([name])
 }
 
 model Class {
@@ -265,6 +268,8 @@ model ClassSubject {
   subject    Subject @relation(fields: [subjectUuid], references: [subjectUuid])
 
   @@unique([classUuid, subjectUuid])
+  @@index([classUuid])
+  @@index([subjectUuid])
 }
 
 model TeacherSubject {
