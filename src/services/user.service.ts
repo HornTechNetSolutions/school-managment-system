@@ -27,7 +27,7 @@ export async function createProfile(role, user, body, registeredByUuid?) {
           studentEmail: user.email,
           studentNumber,
           userUuid: user.userUuid,
-          registeredByUuid, // 🔥 IMPORTANT
+          registeredByUuid,
         },
       });
 

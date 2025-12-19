@@ -140,7 +140,7 @@ export const assignStudentClass= async (req: Request, res: Response)=>{
             return res.status(401).json({success: false, message: "ClassUuid required"})
         }; 
         
-        const classExists= await prisma.findUnique({where: {classUuid}})
+        const classExists= await prisma.class.findUnique({where: {classUuid}})
         if (!classExists) {
             return res.status(404).json({
               success: false,
@@ -172,4 +172,4 @@ export const assignStudentClass= async (req: Request, res: Response)=>{
         console.error("Assign Student class error:", err);
         res.status(500).json({ message: "Internal server error" });
     }
-}
+};

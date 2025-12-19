@@ -217,7 +217,11 @@ export const deleteSubject= async(req: Request, res: Response)=>{
 export const assignSubjectToClass= async (req: Request, res: Response)=>{
     try {
         const {classUuid}= req.params;
-        const { subjectUuids = [] } = req.body;
+        let { subjectUuids } = req.body;
+
+        if (typeof subjectUuids === "string") {
+        subjectUuids = [subjectUuids];
+        }
 
         if (!classUuid) {
             return res.status(400).json({ message: "classUuid required" });
@@ -335,66 +339,38 @@ export const removeSubjectFromClass= async(req: Request, res: Response)=>{
     }
 };
 
-export const assignSubjectToTeacher = async (req: Request, res: Response) =>{
-    try {
-        const {subjectUuid}= req.params
-        const { teacherUuid } = req.body;
-
-        const subjectExists = await prisma.subject.findUnique({ where: { subjectUuid } });
-        if (!subjectExists) {
-            return res.status(404).json({ message: "Subject not found" });
-        };
-
-        const assigned= await prisma.teacherSubject.create({
-            data: {
-              teacherUuid,
-              subjectUuid,
-            },
-        });
-
-        return res.status(201).json({
-            message: "Subject assigned to teacher successfully",
-            data: assigned
-        });
-    } catch (err: any) {
-        if (err.code === "P2002") {
-            return res.status(400).json({
-              message: "Teacher already teaches this subject",
-            });
-        }
-        console.error("Assign Subject To Teacher error:", err);
-        return res.status(500).json({ message: err.message });
-    };
-};
-
 export const assignSubjectsToTeacher = async (req: Request, res: Response) => {
     try {
       const { teacherUuid } = req.params;
       const { subjectUuids = [] } = req.body;
-  
+
       if (!Array.isArray(subjectUuids) || subjectUuids.length === 0) {
-        return res.status(400).json({ message: "subjectUuids required" });
+        return res.status(400).json({
+          message: "subjectUuids must be a non-empty array",
+        });
       }
   
-      const teacher = await prisma.teacher.findUnique({ where: { teacherUuid } });
-      if (!teacher) {
-        return res.status(404).json({ message: "Teacher not found" });
+      const subjects = await prisma.subject.findMany({
+        where: { subjectUuid: { in: subjectUuids } },
+        select: { subjectUuid: true },
+      });
+  
+      if (subjects.length !== subjectUuids.length) {
+        return res.status(404).json({
+          message: "Some subjects not found",
+        });
       }
-  
-      const data = subjectUuids.map((subjectUuid: string) => ({
-        teacherUuid,
-        subjectUuid,
-      }));
-  
-      const assigned= await prisma.teacherSubject.createMany({
-        data,
+
+      await prisma.teacherSubject.createMany({
+        data: subjectUuids.map((subjectUuid: string) => ({
+          teacherUuid,
+          subjectUuid,
+        })),
         skipDuplicates: true,
       });
   
       return res.status(201).json({
-        success: true,
-        message: "Subjects assigned to teacher",
-        data: assigned
+        message: "Subjects assigned to teacher successfully",
       });
     } catch (err) {
       console.error(err);

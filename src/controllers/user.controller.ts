@@ -24,14 +24,19 @@ export const createUser= async (req: Request, res: Response)=>{
     let registeredByUuid = null;
 
     if (role === "STUDENT" && req.user.role === "ADMIN") {
-      console.log(req.user);
-      registeredByUuid = req.user.userId;
+      registeredByUuid = null
     }
 
     if(role === "STUDENT" && req.user.role === "EMPLOYEE"){
       const employee= await prisma.employee.findUnique({
         where: { userUuid: req.user.userId }
       });
+
+      if (req.user.role === "EMPLOYEE" && role !== "STUDENT") {
+        return res.status(403).json({
+          message: "Employees can only create student accounts"
+        });
+      }
 
       if (!employee || employee.employeeRole !== "REGISTRAR") {
         return res
@@ -94,7 +99,7 @@ export const createUser= async (req: Request, res: Response)=>{
 
 export const login= async (req: Request, res: Response)=>{
   try {
-    const {password, studentNumber, employeeNumber, email, adminNumber}= req.body;
+    const {password, studentNumber, employeeNumber, email, adminNumber, teacherNumber}= req.body;
 
     if (!password){
         return res.status(400).json({ message: "Email & password required" })
@@ -112,6 +117,14 @@ export const login= async (req: Request, res: Response)=>{
           include: { user: true },
         });
         if (student) user = student.user;
+    };
+    
+    if(teacherNumber){
+      const teacher= await prisma.teacher.findUnique({ 
+        where: {teacherNumber},
+        include: {user: true}
+      })
+      if(teacher) user= teacher.user;
     };
 
     if (!user && employeeNumber) {
