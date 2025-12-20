@@ -37,6 +37,12 @@ enum ExamType {
   PROJECT
 }
 
+enum ResultStatus {
+  DRAFT 
+  PUBLISHED
+  LOCKED
+}
+
 enum EmployeeRole {
   PRINCIPAL
   VICE_PRINCIPAL
@@ -102,8 +108,8 @@ model student {
   parentUuid   String?
   parent       parent?  @relation(fields: [parentUuid], references: [parentUuid])
 
-  registeredByUuid String
-  registeredBy employee @relation(fields: [registeredByUuid], references: [employeeUuid])
+  registeredByUuid String?
+  registeredBy employee? @relation(fields: [registeredByUuid], references: [employeeUuid])
 
   classUuid    String?
   class        Class?   @relation(fields: [classUuid], references: [classUuid])
@@ -191,12 +197,15 @@ model Subject {
   subjectUuid String @id @default(uuid())
   name        String
   code        String?  @unique
-  grade       String?  @unique
+  grade       String?
 
   classes     ClassSubject[]
   teachers    TeacherSubject[]
   Assignment Assignment[]
   Exam Exam[]
+
+  @@index([grade])
+  @@index([name])
 }
 
 model Class {
@@ -241,6 +250,14 @@ model Exam {
   updatedAt     DateTime @updatedAt
 }
 
+// model gradeScale {
+//   id
+//   minMarks
+//   maxMarks
+//   grade   
+//   points 
+// }
+
 model ExamResult {
   resultUuid    String @id @default(uuid())
   examUuid      String
@@ -250,10 +267,16 @@ model ExamResult {
   gradedByUuid  String?
   gradedAt      DateTime?
   comment       String?
+  // status         ResultStatus @default(DRAFT)
 
   exam         Exam     @relation(fields: [examUuid], references: [examUuid])
   student      student  @relation(fields: [studentUuid], references: [studentUuid])
   gradedBy     teacher? @relation(fields: [gradedByUuid], references: [teacherUuid])
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([examUuid, studentUuid])
 }
 
 model ClassSubject {
@@ -265,6 +288,8 @@ model ClassSubject {
   subject    Subject @relation(fields: [subjectUuid], references: [subjectUuid])
 
   @@unique([classUuid, subjectUuid])
+  @@index([classUuid])
+  @@index([subjectUuid])
 }
 
 model TeacherSubject {

@@ -312,7 +312,6 @@ CREATE INDEX "ClassSubject_classUuid_idx" ON "ClassSubject"("classUuid");
 -- CreateIndex
 CREATE INDEX "ClassSubject_subjectUuid_idx" ON "ClassSubject"("subjectUuid");
 
-
 -- CreateIndex
 CREATE UNIQUE INDEX "ClassSubject_classUuid_subjectUuid_key" ON "ClassSubject"("classUuid", "subjectUuid");
 

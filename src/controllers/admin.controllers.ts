@@ -97,6 +97,8 @@ const getModel = (role: string) => {
         return prisma.employee;
       case "admin":
         return prisma.admin;
+      case "teacher":
+        return prisma.teacher
       default:
         return null;
     }

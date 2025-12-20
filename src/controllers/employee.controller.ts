@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import bcrypt from "bcryptjs";
 import prisma from "../config/prisma.ts"
 
 export const parentWithChildren= async ()=>{
@@ -6,62 +7,69 @@ export const parentWithChildren= async ()=>{
     //     where: { parentUuid },
     //     include: { children: true }
     //   });
-}
-
-export const registerStudent= async (req: Request, res: Response)=>{
-    try {
-       const {
-            fullName,
-            birthDate,
-            birthPlace,
-            address,
-            studentNumber,
-            parentUuid,
-            classUuid,
-        }= req.body;
-
-        const registrarUuid = req.user?.employeeUuid;
-        if (!registrarUuid) {
-            return res.status(403).json({
-              success: false,
-              message: "Only registrars can register students",
-            });
-        };
-
-       if(!fullName || !birthDate || !birthPlace || !address || !studentNumber){
-        return res.status(400).json({success: false, message: "All required fields must be provided"})
-       };
-
-       const student= await prisma.create({
-        data: {
-            studentName: fullName,
-            studentNumber,
-            registeredByUuid: registrarUuid,
-            parentUuid: parentUuid || undefined,
-            classUuid: classUuid || undefined,
-        },
-        include: {
-            parent: true,
-            class: true,
-            registeredBy: {
-                select: {
-                    employeeName: true,
-                    employeeRole: true,
-                },
-            },
-        }
-       });
-
-       return res.status(201).json({
-        success: true,
-        message: "Student registered successfully",
-        student,
-      });
-    } catch (err) {
-        console.error("Update profile error:", err);
-        res.status(500).json({ message: "Internal server error" });
-    }
 };
+
+export const registerStudent = async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const { email, password, studentNumber, fullName, confirmPassword} = body;
+    console.log("REGISTER STUDENT BODY:", req.body);
+    if (!email || !password || !confirmPassword || !studentNumber || !fullName) {
+      return res.status(400).json({ message: "All fields required" });
+    };
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    };
+
+    const employee = await prisma.employee.findUnique({
+      where: { userUuid: req.user.userId },
+    });
+
+    if (!employee || employee.employeeRole !== "REGISTRAR") {
+      return res.status(403).json({ message: "Only registrars can register students" });
+    };
+
+    if (await prisma.users.findUnique({ where: { email } })) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+
+    if (await prisma.student.findUnique({ where: { studentNumber } })) {
+      return res.status(400).json({ message: "Student number already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const user = await prisma.users.create({
+      data: {
+        fullName,
+        email,
+        password: hashedPassword,
+        role: "STUDENT",
+      },
+    });
+    
+    const student = await prisma.student.create({
+      data: {
+        studentName: fullName,
+        studentEmail: email,
+        studentNumber,
+        userUuid: user.userUuid,
+        registeredByUuid: employee.employeeUuid,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Student registered successfully",
+      student,
+    });
+  } catch (err) {
+    console.error("Register student error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 
 export const getAllStudents = async (_req: Request, res: Response) => {
     try {

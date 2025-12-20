@@ -11,11 +11,9 @@ export const createClass= async (req: Request, res: Response)=>{
             data: {
                 name,
                 grade: Number(grade),
-                //class-subject relation
                 ClassSubject: subjectUuids.length
                     ? { create: subjectUuids.map((uuid: any) => ({ subjectUuid: uuid })) }
                     : undefined,
-                //Connect class to teachers
                 teacher: teacherUuids.length
                     ? { connect: teacherUuids.map((uuid: any) => ({ teacherUuid: uuid })) }
                     : undefined
@@ -24,7 +22,7 @@ export const createClass= async (req: Request, res: Response)=>{
 
         return res.status(201).json({
             message: "Class created successfully",
-            class: newClass,
+            data: newClass,
         });
     } catch (err) {
         console.error("Create class error:", err);
@@ -48,7 +46,7 @@ export const getClasses= async (req: Request, res: Response)=>{
                 createdAt: "desc",
             },
         });
-        return res.status(200).json({ classes });
+        return res.status(200).json({ data: classes });
     } catch (err) {
         console.error("Get classes error:", err);
         res.status(500).json({ message: "Internal server error" });
@@ -72,7 +70,7 @@ export const getClass= async (req: Request, res: Response)=>{
             return res.status(404).json({ message: "Class not found" });
         }
       
-        return res.status(200).json({ class: cls });
+        return res.status(200).json({ data: cls });
     } catch (err) {
         console.error("Get class error:", err);
         res.status(500).json({ message: "Internal server error" });
@@ -110,7 +108,7 @@ export const updateClass= async (req: Request, res: Response)=>{
         });
         return res.status(200).json({
             message: "Class updated successfully",
-            class: updatedClass,
+            data: updatedClass,
         });
     } catch (err) {
         console.error("Update class error:", err);
@@ -138,19 +136,40 @@ export const assignStudentClass= async (req: Request, res: Response)=>{
     try {
         const {studentUuid}= req.params;
         const {classUuid}= req.body;
-        if(!studentUuid){
-            return res.status(401).json({success: false, message: "StudentUuid required"})
+        if(!classUuid){
+            return res.status(401).json({success: false, message: "ClassUuid required"})
         }; 
         
-        const studentAlreadyAssigned= await prisma.student.findFirst({where: {studentUuid}});
-        if(!studentAlreadyAssigned){
+        const classExists= await prisma.class.findUnique({where: {classUuid}})
+        if (!classExists) {
+            return res.status(404).json({
+              success: false,
+              message: "Class not found",
+            });
+        }
+
+        const student= await prisma.student.findUnique({where: {studentUuid}});
+        if(!student){
+            return res.status(400).json({ success: false, message: "Student not found" });
+        };
+
+        if (student.classUuid) {
             return res.status(400).json({
-                success: false,
-                message: "This parent is already assigned to another student"
+              success: false,
+              message: "Student is already assigned to a class",
             });
         };
+      
+        await prisma.student.update({
+        where: { studentUuid },
+        data: {
+            classUuid,
+        },
+        });
         
+        return res.status(200).json({ message: "Student assigned to class successfully" });
     } catch (err) {
-        
+        console.error("Assign Student class error:", err);
+        res.status(500).json({ message: "Internal server error" });
     }
-}
+};

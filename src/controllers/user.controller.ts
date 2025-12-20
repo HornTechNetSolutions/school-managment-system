@@ -3,119 +3,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.ts"
 import { signAccessToken, signRefreshToken,verifyRefreshToken } from  "../utils/jwt.ts"
+import { validateBasicFields, validateRoleFields } from "../validators/user.validator.ts";
+import { createProfile } from "../services/user.service.ts";
 
-function validateBasicFields({ fullName, email, password, confirmPassword, role }) {
-  if (!fullName || !email || !password || !confirmPassword || !role) {
-    return "All fields required";
-  }
-  if (password !== confirmPassword) return "Passwords do not match";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Invalid email";
-  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/.test(password))
-    return "Weak password format";
-  return null;
-};
-
-async function validateRoleFields(role, body) {
-  const { studentNumber, employeeNumber, adminNumber, employeeRole, teacherNumber } = body;
-
-  switch (role.toUpperCase()) {
-    case "STUDENT":
-      if (!studentNumber) return "Student number required";
-      if (await prisma.student.findUnique({ where: { studentNumber } }))
-        return "Student number already used";
-      break;
-
-    case "EMPLOYEE":
-      if (!employeeNumber) return "Employee number required";
-      if (!employeeRole) return "Employee role required";
-      if (await prisma.employee.findUnique({ where: { employeeNumber } }))
-        return "Employee number already used";
-      break;
-
-    case "ADMIN":
-      if (!adminNumber) return "Admin number required";
-      if (await prisma.admin.findUnique({ where: { adminNumber } }))
-        return "Admin number already used";
-      break;
-    case "TEACHER":
-      if (!teacherNumber) return "Teacher number required";
-      if (await prisma.teacher.findUnique({ where: { teacherNumber } }))
-        return "Teacher number already used";
-      break;
-
-    case "PARENT":
-      break;
-
-    default:
-      return "Invalid role";
-  }
-
-  return null;
-};
-
-async function createProfile(role, user, body) {
-  const { fullName, employeeRole, department, title, studentNumber,  employeeNumber, 
-    teacherNumber, adminNumber} = body;
-
-  switch (role.toUpperCase()) {
-    case "STUDENT":
-      return prisma.student.create({
-        data: {
-          studentUuid: user.userUuid,
-          studentName: fullName,
-          studentEmail: user.email,
-          studentNumber,
-          userUuid: user.userUuid,
-        },
-      });
-
-    case "EMPLOYEE":
-      return prisma.employee.create({
-        data: {
-          employeeUuid: user.userUuid,
-          employeeName: fullName,
-          employeeEmail: user.email,
-          employeeNumber,
-          userUuid: user.userUuid,
-          employeeRole,
-          department: department || null,
-          title: title || null,
-        },
-      });
-
-    case "PARENT":
-      return prisma.parent.create({
-        data: {
-          parentUuid: user.userUuid,
-          parentName: fullName,
-          parentEmail: user.email,
-          userUuid: user.userUuid,
-        },
-      });
-
-    case "TEACHER":
-      return prisma.teacher.create({
-        data: {
-          teacherUuid: user.userUuid,
-          teacherName: fullName,
-          teacherNumber,
-          teacherEmail: user.email,
-          userUuid: user.userUuid,
-        },
-      });
-
-    case "ADMIN":
-      return prisma.admin.create({
-        data: {
-          adminUuid: user.userUuid,
-          adminName: fullName,
-          adminNumber,
-          adminEmail: user.email,
-          userUuid: user.userUuid,
-        },
-      });
-  }
-};
 
 export const createUser= async (req: Request, res: Response)=>{
   try {
@@ -131,27 +21,57 @@ export const createUser= async (req: Request, res: Response)=>{
     if (await prisma.users.findUnique({ where: { email } }))
       return res.status(400).json({ success: false, message: "Email already in use" });
 
+    let registeredByUuid = null;
+
+    if (role === "STUDENT" && req.user.role === "ADMIN") {
+      registeredByUuid = null
+    }
+
+    if(role === "STUDENT" && req.user.role === "EMPLOYEE"){
+      const employee= await prisma.employee.findUnique({
+        where: { userUuid: req.user.userId }
+      });
+
+      if (req.user.role === "EMPLOYEE" && role !== "STUDENT") {
+        return res.status(403).json({
+          message: "Employees can only create student accounts"
+        });
+      }
+
+      if (!employee || employee.employeeRole !== "REGISTRAR") {
+        return res
+          .status(403)
+          .json({ message: "Only employees can register students" });
+      };
+
+      if (!req.user || !req.user.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      registeredByUuid = employee.employeeUuid;
+    };
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.users.create({
       data: {
         fullName: body.fullName,
-        email: body.email,
+        email,
         password: hashedPassword,
-        role: body.role,
+        role
       },
     });
 
-    const profile = await createProfile(role, user, body);
+    const profile = await createProfile(role, user, body, registeredByUuid);
 
     const accessToken = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.userUuid, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "15m" }
     );
 
     const refreshToken = jwt.sign(
-      { userId: user.id },
+      { userId: user.userUuid },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" }
     );
@@ -179,7 +99,7 @@ export const createUser= async (req: Request, res: Response)=>{
 
 export const login= async (req: Request, res: Response)=>{
   try {
-    const {password, studentNumber, employeeNumber, email, adminNumber}= req.body;
+    const {password, studentNumber, employeeNumber, email, adminNumber, teacherNumber}= req.body;
 
     if (!password){
         return res.status(400).json({ message: "Email & password required" })
@@ -197,6 +117,14 @@ export const login= async (req: Request, res: Response)=>{
           include: { user: true },
         });
         if (student) user = student.user;
+    };
+    
+    if(teacherNumber){
+      const teacher= await prisma.teacher.findUnique({ 
+        where: {teacherNumber},
+        include: {user: true}
+      })
+      if(teacher) user= teacher.user;
     };
 
     if (!user && employeeNumber) {
@@ -216,11 +144,11 @@ export const login= async (req: Request, res: Response)=>{
       if(admin) user= admin.user;
     };
 
-    if (employeeNumber) {
-        user = await prisma.employee.findUnique({
-            where: { employeeNumber }
-        });
-    };
+    // if (employeeNumber) {
+    //     user = await prisma.employee.findUnique({
+    //         where: { employeeNumber }
+    //     });
+    // };
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
