@@ -76,3 +76,69 @@ export const updateStudentContact = async (req: Request, res: Response) => {
     }
 };
 
+
+export const getStudentAttendance = async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    try {
+        const attendance = await prisma.attendance.findMany({
+            where: { studentUuid: id },
+            orderBy: { date: 'desc' },
+            include: {
+                class: { select: { name: true, grade: true } }
+            }
+        });
+
+        if (!attendance) {
+            return res.status(404).json({ status: 'fail', message: 'No attendance records found for this student.' });
+        }
+
+        res.status(200).json({
+            status: 'success',
+            results: attendance.length,
+            data: { attendance }
+        });
+    } catch (error) {
+        console.error('Error fetching student attendance:', error);
+        res.status(500).json({ status: 'error', message: 'Internal server error.' });
+    }
+};
+
+
+export const getStudentGrades = async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    try {
+        const grades = await prisma.examResult.findMany({
+            where: { studentUuid: id },
+            include: {
+                exam: {
+                    select: {
+                        title: true,
+                        examType: true,
+                        totalMarks: true,
+                        subject: { select: { name: true } }
+                    }
+                }
+            },
+            orderBy: { exam: { examDate: 'desc' } }
+        });
+
+        
+        const average = grades.length > 0 
+            ? grades.reduce((acc, curr) => acc + (curr.marksObtained || 0), 0) / grades.length 
+            : 0;
+
+        res.status(200).json({
+            status: 'success',
+            results: grades.length,
+            data: { 
+                statistics: { averageMarks: average.toFixed(2) },
+                grades 
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching student grades:', error);
+        res.status(500).json({ status: 'error', message: 'Internal server error.' });
+    }
+};

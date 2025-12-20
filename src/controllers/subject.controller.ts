@@ -179,8 +179,8 @@ export const updateClassSubjects = async (req: Request, res: Response) => {
         return res.status(400).json({ message: "classUuid required" });
       }
   
-      const class = await prisma.class.findUnique({ where: { classUuid } });
-      if (!class) {
+      const Class = await prisma.class.findUnique({ where: { classUuid } });
+      if (!Class) {
         return res.status(404).json({ message: "Class not found" });
       }
   
