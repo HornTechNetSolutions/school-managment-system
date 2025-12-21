@@ -7,6 +7,8 @@ import adminRoutes from "./routes/admin.routes.ts"
 import employeeRoutes from "./routes/employee.routes.ts"
 import Employee from "./routes/employee/index.ts";
 import teacherRoutes from "./routes/teacher.routes.ts"
+import examRoutes from "./routes/exam.routes.ts"
+import subjectRoutes from "./routes/subject.routes.ts"
 
 
 
@@ -27,6 +29,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/teacher", teacherRoutes);
+app.use("/api", examRoutes);
+app.use("/api", subjectRoutes);
 
 // Employees API
 app.use("/api/employee", Employee);

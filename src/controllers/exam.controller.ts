@@ -362,7 +362,16 @@ export const getExamResult= async (req: Request, res: Response)=>{
 
         res.status(201).json({success: false, message: {data: result}})
     } catch (err: any) {
-        console.error("Error in get exam result error:", err);
+        console.error("Error in get exam result:", err);
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const lockExam= async ()=>{
+    try {
+        
+    } catch (err) {
+        console.error("Error in lock exam:", err);
         return res.status(500).json({ message: err.message });
     }
 }

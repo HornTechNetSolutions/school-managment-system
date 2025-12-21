@@ -1,108 +1,19 @@
 import express from "express"
-import { 
-    assignChildParent, 
-    updateProfile, 
-    deleteUser, 
-    getUser, 
-    getUsers, 
-    updateUser 
-} from "../controllers/admin.controllers.ts";
-import { 
-    createClass, 
-    deleteClass, 
-    getClass, 
-    getClasses, 
-    updateClass, 
-    assignStudentClass 
-} from "../controllers/class.contorller.ts";
-import { 
-    createSubject, 
-    assignSubjectToClass, 
-    assignSubjectsToTeacher, 
-    deleteSubject, 
-    getSubject, 
-    getSubjects, 
-    removeSubjectFromTeacher, 
-    updateSubject 
-} from "../controllers/subject.controller.ts";
 import { authenticate, authorize } from "../middlewares/auth.middleware.ts";
-import { createUser } from "../controllers/user.controller.ts";
-import { 
-    assignResults, 
-    createExam, 
-    getExam, 
-    getExamResults, 
-    getExams, 
-    removeExam, 
-    updateExam 
-} from "../controllers/exam.controller.ts";
-import { registerStudent } from "../controllers/employee.controller.ts";
-import { 
-    getAttendanceToday, 
-    getFeesCollectedThisMonth, 
-    getTotalParents, 
-    getTotalStudents, 
-    getTotalTeachers, 
-    getUpcomingExams,
-    getDashboardOverview, 
-    getMonthlyAttendanceStats, 
-    getMonthlyFeesStats
-} from "../controllers/dashboarrd.controller.ts";
+import userAdminRoutes from "./user.admin.routes.ts"
+import classAdminRoutes from "./class.admin.routes.ts"
+import subjectAdminRoutes from "./subject.admin.routes.ts"
+import dashboardAdminRoutes from "./dashboard.admin.routes.ts"
 
 
 const router= express.Router()
 
 router.use(authenticate, authorize("ADMIN"));
 
-//Create Teacher, Student, Parent, Employee, New Admin
-//user oprations
-router.post("/create-user", authenticate, authorize("ADMIN"), createUser);
-router.get("/users/:role", getUsers);
-router.get("/users/:role/:uuid", getUser);
-router.put("/users/:role/:uuid", updateUser); // not tested
-router.delete("/users/:role/:uuid", deleteUser);
-
-router.put("/update-profile/:userUuid", authenticate, authorize('ADMIN'), updateProfile );
-router.post("/:studentUuid/assign-parent", authenticate, authorize('ADMIN'), assignChildParent)
-
-//CLASS MANAGEMENT
-router.post("/class/create", authenticate, authorize('ADMIN'), createClass);
-router.get("/class/all", authenticate, authorize('ADMIN'), getClasses);
-router.get("/class/:classUuid", authenticate, authorize('ADMIN'), getClass);
-router.put("/class/:classUuid", authenticate, authorize('ADMIN'), updateClass); 
-router.delete("/class/:classUuid", authenticate, authorize('ADMIN'), deleteClass);
-router.post("/student/:studentUuid/assign-class", authenticate, authorize('ADMIN'), assignStudentClass); // not tested
-
-//Subject Management
-router.post("/subject/create", authenticate, authorize('ADMIN'), createSubject);
-router.get("/subject/all", authenticate, authorize("TEACHER","ADMIN", "REGISTRAR"), getSubjects);
-router.get("/subject/:subjectUuid", authenticate, authorize("TEACHER","ADMIN", "REGISTRAR"), getSubject);
-router.put("/subject/:subjectUuid",authenticate, authorize("ADMIN", "REGISTRAR"), updateSubject);
-router.delete("/subject/:subjectUuid", authenticate, authorize('ADMIN'),deleteSubject);
-router.post("/subject/assign-class/:classUuid", authenticate, authorize('ADMIN', "REGISTRAR"), assignSubjectToClass);
-router.post("/subject/assign-teacher/:teacherUuid", authenticate, authorize('ADMIN'), assignSubjectsToTeacher); //mismatch
-router.post("/subject/remove-teacher/:subjectUuid", authenticate, authorize('ADMIN'), removeSubjectFromTeacher);
-
-//Exam routes
-router.post("/exam/create", authenticate, authorize("TEACHER","ADMIN"), createExam);
-router.get("/exam/all", authenticate, getExams);
-router.get("/exam/:examUuid", authenticate, getExam);
-router.put("exam/:examUuid", authenticate, authorize("TEACHER","ADMIN"), updateExam);
-router.delete("/exam/:examUuid", authenticate, authorize("ADMIN"), removeExam);
-// router.post("/exam/:examUuid/results/lock", authenticate, authorize("ADMIN"), lockExam)
-router.get("/exam/:examUuid/results", authenticate, getExamResults);
-
-//DASHBOARD ANALYTICS
-router.get("/dashboard/totalStudents", authenticate, authorize('ADMIN'), getTotalStudents);
-router.get("/dashboard/totalParents", authenticate, authorize('ADMIN'), getTotalParents);
-router.get("/dashboard/totalTeachers", authenticate, authorize('ADMIN'), getTotalTeachers);
-router.get("/dashboard/attendanceToday", authenticate, authorize('ADMIN'), getAttendanceToday);
-router.get("/dashboard/feesCollected", authenticate, authorize('ADMIN'), getFeesCollectedThisMonth);
-router.get("/dashboard/upcomingExams", authenticate, authorize('ADMIN'), getUpcomingExams);
-
-router.get("/dashboard/overview", authenticate, authorize("ADMIN"), getDashboardOverview);
-router.get("/dashboard/charts/attendance", authenticate, authorize("ADMIN"), getMonthlyAttendanceStats);
-router.get("/dashboard/charts/fees", authenticate, authorize("ADMIN"), getMonthlyFeesStats);
+router.use("/users", userAdminRoutes);
+router.use("/classes", classAdminRoutes);
+router.use("/subjects", subjectAdminRoutes);
+router.use("/dashboard", dashboardAdminRoutes);
 
 
 // router.get("/:studentUuid/attendance", authenticate, authorize('ADMIN'), getAttendance)

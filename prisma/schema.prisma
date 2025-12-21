@@ -396,3 +396,11 @@ model Payment {
 //   user   User   @relation(fields: [userId], references: [id])
 //   createdAt DateTime @default(now())
 // }
+
+// model StudentInsight {
+//   id          String   @id @default(uuid())
+//   studentId   String
+//   summary     String
+//   riskScore   Int
+//   createdAt  DateTime @default(now())
+// }
